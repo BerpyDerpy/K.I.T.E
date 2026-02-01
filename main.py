@@ -5,9 +5,14 @@ import os
 import importlib
 import traceback
 from utils.tts import get_tts, speak, stop
+from utils.stt import get_stt, listen_for_voice, stop_listening, check_stt_availability
 
 # Speech mode toggle
 speech_enabled = False
+
+# Voice input mode toggle
+voice_enabled = False
+voice_stt = None
 
 def toggle_speech():
     """Toggle speech mode on/off."""
@@ -20,6 +25,90 @@ def toggle_speech():
     else:
         print("[System] Speech disabled")
     return speech_enabled
+
+def toggle_voice():
+    """Toggle voice input mode on/off."""
+    global voice_enabled, voice_stt
+    
+    if voice_enabled:
+        # Turn off voice mode
+        if voice_stt is not None:
+            stop_listening()
+            voice_stt = None
+        voice_enabled = False
+        print("[System] Voice input disabled")
+    else:
+        # Turn on voice mode - check availability first
+        availability = check_stt_availability()
+        
+        if not availability.get("whisper_available"):
+            print("[System] Voice input unavailable: faster-whisper not installed")
+            print("         Run: pip install -r requirements.txt")
+            return False
+        
+        if not availability.get("audio_available"):
+            print("[System] Voice input unavailable: audio libraries not installed")
+            print("         Run: pip install sounddevice webrtcvad")
+            return False
+        
+        # Initialize STT and start listening
+        voice_stt = get_stt()
+        voice_stt.start_listening(on_voice_transcript)
+        voice_enabled = True
+        print("[System] Voice input enabled - speak your commands")
+    
+    return voice_enabled
+
+def on_voice_transcript(text: str):
+    """Callback when voice is transcribed to text."""
+    global voice_enabled
+    
+    if not text or not text.strip():
+        return
+    
+    print(f"\n🎤 You (voice): {text}")
+    
+    # Process the voice input through the router
+    try:
+        decision = router.run_router(text)
+        
+        if "error" in decision:
+            print(f"[Error] Router failed: {decision['error']}")
+            return
+
+        action = decision.get("action")
+        
+        if action == "BUILD":
+            print(f"[System] Action: BUILD ({decision.get('description')})")
+            description = decision.get("description", text)
+            
+            # Call Builder
+            args, filename = builder.build_and_parse(description, text)
+            tool_name = filename.replace(".py", "")
+            
+            # Execute immediately
+            load_and_run_skill(tool_name, args)
+
+        elif action == "USE_TOOL":
+            tool_name = decision.get("tool")
+            print(f"[System] Action: USE_TOOL ({tool_name})")
+            
+            args = decision.get("args", {})
+            
+            # If args is empty, try to parse them
+            if not args:
+                print("[System] Llama didn't return args. Asking Builder to parse...")
+                args = builder.parse_only(tool_name, text)
+            
+            load_and_run_skill(tool_name, args)
+
+        else:
+            print(f"[Error] Unknown action: {action}")
+            print(f"Debug: {decision}")
+
+    except Exception as e:
+        print(f"[Error] Failed to process voice input: {e}")
+        traceback.print_exc()
 
 def speak_response(text: str):
     """Speak the model response if speech is enabled."""
@@ -56,7 +145,7 @@ def main():
     print("--------------------------------------------------")
     print(" K.I.T.E: Kernel Integrated Task Engine")
     print(" Models: Llama 3.2 & Qwen 2.5")
-    print(" Commands: 'speech on', 'speech off', 'speech toggle'")
+    print(" Commands: 'speech on/off/toggle', 'voice on/off/toggle', 'exit'")
     print("--------------------------------------------------")
     
     while True:
@@ -78,7 +167,24 @@ def main():
                 toggle_speech()
                 continue
             
+            # Voice input toggle commands
+            if user_input.lower() == "voice on":
+                toggle_voice()
+                continue
+            elif user_input.lower() == "voice off":
+                if voice_enabled:
+                    toggle_voice()
+                else:
+                    print("[System] Voice input already disabled")
+                continue
+            elif user_input.lower() == "voice toggle":
+                toggle_voice()
+                continue
+            
             if user_input.lower() in ["exit", "quit"]:
+                # Clean up voice listening if active
+                if voice_enabled:
+                    stop_listening()
                 print("[System] Shutting down.")
                 break
 
@@ -125,6 +231,9 @@ def main():
 
         except KeyboardInterrupt:
             print("\n[System] Interrupted. Exiting.")
+            # Clean up voice listening if active
+            if voice_enabled:
+                stop_listening()
             break
         except Exception as e:
             print(f"[Error] Unhandled exception in main loop: {e}")
