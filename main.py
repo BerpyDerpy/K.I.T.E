@@ -4,6 +4,27 @@ import sys
 import os
 import importlib
 import traceback
+from utils.tts import get_tts, speak, stop
+
+# Speech mode toggle
+speech_enabled = False
+
+def toggle_speech():
+    """Toggle speech mode on/off."""
+    global speech_enabled
+    speech_enabled = not speech_enabled
+    tts = get_tts()
+    if speech_enabled:
+        tts.start()
+        print("[System] Speech enabled - Jarvis will speak responses")
+    else:
+        print("[System] Speech disabled")
+    return speech_enabled
+
+def speak_response(text: str):
+    """Speak the model response if speech is enabled."""
+    if speech_enabled and text:
+        speak(text)
 
 def load_and_run_skill(tool_name, args):
     try:
@@ -23,6 +44,8 @@ def load_and_run_skill(tool_name, args):
         result = module.execute(**args)
         if result is not None:
             print(f"[Output] {result}")
+            # Speak the result if speech is enabled
+            speak_response(str(result))
         print(f"[System] Execution finished.")
 
     except Exception as e:
@@ -33,6 +56,7 @@ def main():
     print("--------------------------------------------------")
     print(" K.I.T.E: Kernel Integrated Task Engine")
     print(" Models: Llama 3.2 & Qwen 2.5")
+    print(" Commands: 'speech on', 'speech off', 'speech toggle'")
     print("--------------------------------------------------")
     
     while True:
@@ -40,6 +64,18 @@ def main():
             print("\n")
             user_input = input("You: ").strip()
             if not user_input:
+                continue
+            
+            # Speech toggle commands
+            if user_input.lower() == "speech on":
+                toggle_speech()
+                continue
+            elif user_input.lower() == "speech off":
+                speech_enabled = False
+                print("[System] Speech disabled")
+                continue
+            elif user_input.lower() == "speech toggle":
+                toggle_speech()
                 continue
             
             if user_input.lower() in ["exit", "quit"]:
@@ -96,3 +132,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
