@@ -1,0 +1,4 @@
+# K.I.T.E Dependencies
+ollama>=0.3.0
+pyttsx3>=2.90
+
