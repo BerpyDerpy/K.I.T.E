@@ -77,13 +77,53 @@ def _build_tool_arguments(tool, user_query: str) -> dict:
 # ──────────────────────────────────────────────
 #  Transport helpers
 # ──────────────────────────────────────────────
+def _find_skill_script(skill: dict) -> Path:
+    """
+    Figure out which .py file in /skills/ to launch for this skill.
+
+    Search order:
+      1. Explicit "script" field in the registry entry
+      2. {skill_id}.py
+      3. Scan /skills/ for a file that contains one of the skill's tool names
+    """
+    skill_id = skill["id"]
+
+    # 1. Explicit script field
+    if "script" in skill:
+        path = SKILLS_DIR / skill["script"]
+        if path.exists():
+            return path
+
+    # 2. Convention: {skill_id}.py
+    path = SKILLS_DIR / f"{skill_id}.py"
+    if path.exists():
+        return path
+
+    # 3. Search by tool name — check each .py file for the tool name
+    tool_names = skill.get("tools", [])
+    for py_file in sorted(SKILLS_DIR.glob("*.py")):
+        if py_file.name == "__init__.py":
+            continue
+        try:
+            source = py_file.read_text()
+            for tool_name in tool_names:
+                if f'def {tool_name}(' in source:
+                    return py_file
+        except Exception:
+            continue
+
+    raise FileNotFoundError(
+        f"No script found for skill '{skill_id}' in {SKILLS_DIR}"
+    )
+
+
 async def _call_via_stdio(skill: dict, user_query: str) -> str:
     """
     Launch a local skill script as a subprocess and talk to it
     over stdio using the MCP SDK.
 
     Steps:
-      1. Build StdioServerParameters pointing at the skill script
+      1. Find the right script in /skills/
       2. Open a stdio_client  → gives us (read_stream, write_stream)
       3. Create a ClientSession and initialize it
       4. List the tools the server exposes
@@ -91,11 +131,8 @@ async def _call_via_stdio(skill: dict, user_query: str) -> str:
       6. Return the result text
     """
     skill_id = skill["id"]
-    script_name = skill.get("script", f"{skill_id}.py")
-    script_path = SKILLS_DIR / script_name
-
-    if not script_path.exists():
-        raise FileNotFoundError(f"Skill script not found: {script_path}")
+    script_path = _find_skill_script(skill)
+    print(f"  ↳ Script: {script_path.name}")
 
     # Configure the subprocess command
     server_params = StdioServerParameters(
