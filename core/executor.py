@@ -1,19 +1,23 @@
 """
 core/executor.py — Skill Executor for K.I.T.E.
 
-Looks up a skill by id from the registry, executes it either as a
-local Python script or via an MCP server HTTP call, and returns the
-result as a plain string.
+Uses the official MCP Python SDK to connect to skill servers.
+- Local skills  → launched as a subprocess via stdio transport
+- Remote skills → connected via SSE transport using the registry URL
+
+The executor opens a ClientSession, discovers the first available tool,
+calls it with the user_query, and returns the result as a plain string.
 """
 
-import importlib.util
-import os
 import sys
+import asyncio
 import json
-import traceback
 from pathlib import Path
 
-import httpx
+# ─── MCP SDK imports ───────────────────────────
+from mcp import ClientSession
+from mcp.client.stdio import stdio_client, StdioServerParameters
+from mcp.client.sse import sse_client
 
 # ──────────────────────────────────────────────
 #  Constants
@@ -26,9 +30,9 @@ SKILLS_DIR = PROJECT_ROOT / "skills"
 #  Helpers
 # ──────────────────────────────────────────────
 def _error_response(skill_id: str, message: str) -> dict:
-    """Return a structured error dict conforming to the fallback spec."""
+    """Return a structured error dict when something goes wrong."""
     return {
-        "error": "true",
+        "error": True,
         "skill_id": skill_id,
         "message": message,
     }
@@ -42,81 +46,140 @@ def _lookup_skill(skill_id: str, skills_registry: list[dict]) -> dict | None:
     return None
 
 
-# ──────────────────────────────────────────────
-#  Local script execution
-# ──────────────────────────────────────────────
-def _run_local_skill(skill: dict, user_query: str) -> str:
+def _build_tool_arguments(tool, user_query: str) -> dict:
     """
-    Import and execute a local Python skill from the /skills directory.
+    Inspect a tool's inputSchema to map user_query to the right parameter.
 
-    Convention: the skill module must expose a ``run(query: str) -> str``
-    function.
+    Strategy:
+      - Look at the tool's inputSchema for 'required' string fields.
+      - Pass user_query as the value of the first required string param.
+      - If no schema / no required fields, fall back to {"query": user_query}.
     """
-    skill_id: str = skill["id"]
+    schema = getattr(tool, "inputSchema", None) or {}
+    properties = schema.get("properties", {})
+    required = schema.get("required", [])
+
+    # Find the first required string parameter
+    for param_name in required:
+        param_info = properties.get(param_name, {})
+        if param_info.get("type", "string") == "string":
+            return {param_name: user_query}
+
+    # Fallback: if there's any property at all, use the first one
+    if properties:
+        first_param = list(properties.keys())[0]
+        return {first_param: user_query}
+
+    # Last resort
+    return {"query": user_query}
+
+
+# ──────────────────────────────────────────────
+#  Transport helpers
+# ──────────────────────────────────────────────
+async def _call_via_stdio(skill: dict, user_query: str) -> str:
+    """
+    Launch a local skill script as a subprocess and talk to it
+    over stdio using the MCP SDK.
+
+    Steps:
+      1. Build StdioServerParameters pointing at the skill script
+      2. Open a stdio_client  → gives us (read_stream, write_stream)
+      3. Create a ClientSession and initialize it
+      4. List the tools the server exposes
+      5. Call the *first* available tool with the user query
+      6. Return the result text
+    """
+    skill_id = skill["id"]
     script_name = skill.get("script", f"{skill_id}.py")
     script_path = SKILLS_DIR / script_name
 
     if not script_path.exists():
-        raise FileNotFoundError(
-            f"Local skill script not found: {script_path}"
-        )
+        raise FileNotFoundError(f"Skill script not found: {script_path}")
 
-    # Dynamically import the module
-    spec = importlib.util.spec_from_file_location(
-        f"skills.{skill_id}", str(script_path)
+    # Configure the subprocess command
+    server_params = StdioServerParameters(
+        command=sys.executable,            # e.g. "python3"
+        args=[str(script_path)],           # run the skill file
     )
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
 
-    if not hasattr(module, "run"):
-        raise AttributeError(
-            f"Skill script '{script_name}' does not expose a run(query) function."
-        )
+    # Connect via stdio transport
+    async with stdio_client(server_params) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            # Handshake with the MCP server
+            await session.initialize()
 
-    result = module.run(user_query)
-    return str(result)
+            # Discover available tools
+            tools_result = await session.list_tools()
+            tools = tools_result.tools
+
+            if not tools:
+                raise RuntimeError(f"Skill '{skill_id}' exposes no tools.")
+
+            # Pick the first tool and call it
+            first_tool = tools[0]
+            print(f"  ↳ Calling tool '{first_tool.name}' on skill '{skill_id}'")
+
+            # Build arguments from the tool's schema
+            arguments = _build_tool_arguments(first_tool, user_query)
+            print(f"  ↳ Arguments: {arguments}")
+
+            call_result = await session.call_tool(
+                first_tool.name,
+                arguments=arguments,
+            )
+
+            # Extract plain text from the result
+            # call_result.content is a list of content blocks
+            parts = []
+            for block in call_result.content:
+                if hasattr(block, "text"):
+                    parts.append(block.text)
+            return "\n".join(parts) if parts else str(call_result)
 
 
-# ──────────────────────────────────────────────
-#  MCP server execution
-# ──────────────────────────────────────────────
-def _run_mcp_skill(skill: dict, user_query: str) -> str:
+async def _call_via_sse(skill: dict, user_query: str) -> str:
     """
-    Call an MCP-compatible server over HTTP.
+    Connect to a remote MCP server over SSE and call its first tool.
 
-    Sends a JSON-RPC–style POST with the user query as tool input and
-    returns the server's text response.
+    Same flow as stdio, but uses sse_client for transport.
     """
-    url: str = skill["mcp_server_url"]
-    tool_name: str = skill.get("tool_name", skill["id"])
+    skill_id = skill["id"]
+    url = skill["mcp_server_url"]
 
-    payload = {
-        "tool_name": tool_name,
-        "input": {
-            "query": user_query,
-        },
-    }
+    # Connect via SSE transport
+    async with sse_client(url) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
 
-    response = httpx.post(
-        url,
-        json=payload,
-        timeout=30.0,
-    )
-    response.raise_for_status()
+            tools_result = await session.list_tools()
+            tools = tools_result.tools
 
-    data = response.json()
+            if not tools:
+                raise RuntimeError(f"Remote skill '{skill_id}' exposes no tools.")
 
-    # The MCP server may return the result under a "result" key or as
-    # the top-level body itself — handle both gracefully.
-    if isinstance(data, dict) and "result" in data:
-        return str(data["result"])
-    return str(data)
+            first_tool = tools[0]
+            print(f"  ↳ Calling tool '{first_tool.name}' on remote skill '{skill_id}'")
+
+            arguments = _build_tool_arguments(first_tool, user_query)
+            print(f"  ↳ Arguments: {arguments}")
+
+            call_result = await session.call_tool(
+                first_tool.name,
+                arguments=arguments,
+            )
+
+            parts = []
+            for block in call_result.content:
+                if hasattr(block, "text"):
+                    parts.append(block.text)
+            return "\n".join(parts) if parts else str(call_result)
 
 
 # ──────────────────────────────────────────────
 #  Public API
 # ──────────────────────────────────────────────
-def execute_skill(
+async def execute_skill(
     skill_id: str,
     user_query: str,
     skills_registry: list[dict],
@@ -127,98 +190,133 @@ def execute_skill(
     Parameters
     ----------
     skill_id : str
-        The id of the skill to execute.
+        The id of the skill to execute (must match an entry in the registry).
     user_query : str
         The natural-language query from the user.
     skills_registry : list[dict]
-        The full skills registry (list of skill dicts).
+        The full skills registry (list of skill dicts from skills.json).
 
     Returns
     -------
-    str
-        The plain-text result of the skill execution.
-    dict
-        A structured error dict if execution fails.
+    str   — The plain-text result from the tool.
+    dict  — A structured error dict if anything fails.
     """
-    # 1. Look up the skill
+    # Step 1: Look up the skill
     skill = _lookup_skill(skill_id, skills_registry)
     if skill is None:
-        return _error_response(
-            skill_id,
-            f"Skill '{skill_id}' not found in the registry.",
-        )
+        return _error_response(skill_id, f"Skill '{skill_id}' not found in registry.")
 
     try:
+        # Step 2: Pick the right transport
         mcp_url = skill.get("mcp_server_url")
 
         if mcp_url:
-            # 2a. Remote MCP server call
-            return _run_mcp_skill(skill, user_query)
+            # Remote skill → SSE transport
+            result = await _call_via_sse(skill, user_query)
         else:
-            # 2b. Local Python script
-            return _run_local_skill(skill, user_query)
+            # Local skill → stdio transport (subprocess)
+            result = await _call_via_stdio(skill, user_query)
 
-    except FileNotFoundError as exc:
-        return _error_response(skill_id, str(exc))
-    except httpx.HTTPStatusError as exc:
-        return _error_response(
-            skill_id,
-            f"MCP server returned HTTP {exc.response.status_code}: {exc.response.text}",
-        )
-    except httpx.RequestError as exc:
-        return _error_response(
-            skill_id,
-            f"Failed to connect to MCP server at '{skill.get('mcp_server_url')}': {exc}",
-        )
+        return result
+
     except Exception as exc:
-        return _error_response(
-            skill_id,
-            f"Unexpected error executing skill '{skill_id}': {traceback.format_exc()}",
-        )
+        # Step 3: On any failure, return a structured error
+        return _error_response(skill_id, f"{type(exc).__name__}: {exc}")
 
 
 # ──────────────────────────────────────────────
 #  __main__ test block
 # ──────────────────────────────────────────────
 if __name__ == "__main__":
-    # --- Sample registry (mirrors registry/skills.json) ---
-    sample_registry = [
-        {
-            "id": "filesystem",
-            "name": "Filesystem Manager",
-            "description": "Create, read, list, and delete files and folders.",
-            "mcp_server_url": None,
-            "script": "filesystem.py",
-            "tool_name": "filesystem",
-        },
-        {
-            "id": "web_search",
-            "name": "Web Search",
-            "description": "Search the web for information.",
-            "mcp_server_url": "http://localhost:8001/mcp",
-            "tool_name": "web_search",
-        },
-    ]
+    """
+    Smoke-tests using the REAL skills.json registry.
 
-    print("=" * 60)
-    print("  K.I.T.E. Executor — Test Run")
-    print("=" * 60)
+    Tests:
+      1. file_reader   — real tool, reads ./README.md via stdio
+      2. datetime_utils — stub tool, returns "not yet implemented"
+      3. system_info    — stub tool, returns "not yet implemented"
+      4. nonexistent    — unknown skill, should return error dict
+      5. web_fetcher    — has mcp_server_url, will try SSE (fails gracefully)
+    """
 
-    # Test 1: Local skill (filesystem)
-    print("\n[Test 1] Executing local skill 'filesystem'...")
-    result = execute_skill("filesystem", "list files in the current directory", sample_registry)
-    print(f"  Result: {result}")
+    # ─── Load the real registry ────────────────
+    import os
+    registry_path = PROJECT_ROOT / "registry" / "skills.json"
+    with open(registry_path, "r") as f:
+        skills_registry = json.load(f)
 
-    # Test 2: Unknown skill
-    print("\n[Test 2] Executing unknown skill 'nonexistent'...")
-    result = execute_skill("nonexistent", "do something", sample_registry)
-    print(f"  Result: {json.dumps(result, indent=2)}")
+    print(f"  Loaded {len(skills_registry)} skills from {registry_path.name}")
 
-    # Test 3: MCP skill (will fail without a running server — demonstrates error handling)
-    print("\n[Test 3] Executing MCP skill 'web_search' (expects server at localhost:8001)...")
-    result = execute_skill("web_search", "what is the weather today?", sample_registry)
-    print(f"  Result: {result if isinstance(result, str) else json.dumps(result, indent=2)}")
+    # ─── Helper to run one test ────────────────
+    async def run_test(label: str, skill_id: str, query: str):
+        """Run a single test case and print the result."""
+        print(f"\n{'─' * 60}")
+        print(f"  {label}")
+        print(f"  skill_id  = {skill_id}")
+        print(f"  query     = {query}")
+        print(f"{'─' * 60}")
 
-    print("\n" + "=" * 60)
-    print("  Tests complete.")
-    print("=" * 60)
+        result = await execute_skill(skill_id, query, skills_registry)
+
+        if isinstance(result, dict):
+            # Error response
+            print(f"  ❌ Error: {json.dumps(result, indent=4)}")
+        else:
+            # Success
+            print(f"  ✅ Result ({type(result).__name__}):")
+            # Indent the output for readability
+            for line in str(result).splitlines():
+                print(f"     {line}")
+
+    # ─── Run all tests ─────────────────────────
+    async def main():
+        print("=" * 60)
+        print("  K.I.T.E. Executor — Full Registry Test")
+        print("=" * 60)
+
+        # Test 1: Real filesystem skill (stdio transport)
+        # filesystem.py exposes read_file, write_file, list_directory
+        # The executor picks the first tool (read_file) and maps
+        # user_query → {"path": "./README.md"}
+        await run_test(
+            label="Test 1: file_reader (real tool, stdio)",
+            skill_id="file_reader",
+            query="./README.md",
+        )
+
+        # Test 2: Stub skill — datetime_utils (stdio transport)
+        # The stub has a zero-argument tool, so _build_tool_arguments
+        # will pass an empty-ish dict — the stub ignores args anyway.
+        await run_test(
+            label="Test 2: datetime_utils (stub, stdio)",
+            skill_id="datetime_utils",
+            query="what time is it?",
+        )
+
+        # Test 3: Stub skill — system_info (stdio transport)
+        await run_test(
+            label="Test 3: system_info (stub, stdio)",
+            skill_id="system_info",
+            query="how much disk space is left?",
+        )
+
+        # Test 4: Unknown skill — should return error dict
+        await run_test(
+            label="Test 4: nonexistent (error case)",
+            skill_id="nonexistent",
+            query="do something impossible",
+        )
+
+        # Test 5: Remote skill — web_fetcher has mcp_server_url set
+        # No server is running, so SSE connect will fail gracefully
+        await run_test(
+            label="Test 5: web_fetcher (SSE, expected to fail)",
+            skill_id="web_fetcher",
+            query="https://example.com",
+        )
+
+        print("\n" + "=" * 60)
+        print("  All tests complete.")
+        print("=" * 60)
+
+    asyncio.run(main())
