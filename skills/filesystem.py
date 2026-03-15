@@ -1,70 +1,34 @@
-"""
-skills/filesystem.py — Local filesystem skill for K.I.T.E.
-
-Exposes a ``run(query)`` function that performs basic filesystem
-operations based on the user's natural-language query.
-"""
-
+from mcp.server.fastmcp import FastMCP
 import os
-from pathlib import Path
 
+mcp = FastMCP("filesystem")
 
-def run(query: str) -> str:
-    """
-    Execute a filesystem operation based on the user query.
+@mcp.tool()
+def read_file(path: str) -> str:
+    """Read the contents of a file."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        return f"Error reading file: {e}"
 
-    Supported intents (keyword-matched for simplicity):
-      • list / ls          → list files in cwd
-      • read <path>        → read a file's contents
-      • create <path>      → create an empty file
-      • mkdir <path>       → create a directory
-      • delete / rm <path> → delete a file
-    """
-    query_lower = query.lower().strip()
-    tokens = query.split()
+@mcp.tool()
+def write_file(path: str, content: str) -> str:
+    """Write content to a file."""
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Successfully wrote to {path}"
+    except Exception as e:
+        return f"Error writing file: {e}"
 
-    # ── List files ────────────────────────────
-    if any(kw in query_lower for kw in ("list", "ls", "dir")):
-        target = "."
-        # Try to extract a path after the keyword
-        for i, tok in enumerate(tokens):
-            if tok.lower() in ("list", "ls", "dir") and i + 1 < len(tokens):
-                candidate = tokens[i + 1]
-                if os.path.isdir(candidate):
-                    target = candidate
-                break
-        entries = os.listdir(target)
-        return "\n".join(entries) if entries else "(empty directory)"
+@mcp.tool()
+def list_directory(path: str) -> list[str]:
+    """List directory contents."""
+    try:
+        return os.listdir(path)
+    except Exception as e:
+        return [f"Error listing directory: {e}"]
 
-    # ── Read file ─────────────────────────────
-    if "read" in query_lower:
-        for tok in tokens:
-            if os.path.isfile(tok):
-                return Path(tok).read_text(encoding="utf-8")
-        return "Error: Could not identify a valid file path to read."
-
-    # ── Create file ───────────────────────────
-    if "create" in query_lower or "touch" in query_lower:
-        for tok in tokens:
-            if tok.lower() not in ("create", "touch", "file", "a", "an", "the"):
-                Path(tok).touch()
-                return f"Created file: {tok}"
-        return "Error: No filename provided."
-
-    # ── Make directory ────────────────────────
-    if "mkdir" in query_lower:
-        for tok in tokens:
-            if tok.lower() != "mkdir":
-                os.makedirs(tok, exist_ok=True)
-                return f"Created directory: {tok}"
-        return "Error: No directory name provided."
-
-    # ── Delete file ───────────────────────────
-    if any(kw in query_lower for kw in ("delete", "rm", "remove")):
-        for tok in tokens:
-            if os.path.isfile(tok):
-                os.remove(tok)
-                return f"Deleted file: {tok}"
-        return "Error: Could not identify a valid file to delete."
-
-    return f"Filesystem skill could not understand the query: '{query}'"
+if __name__ == "__main__":
+    mcp.run()
