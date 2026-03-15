@@ -1,7 +1,6 @@
 <p align="center">
   <img src="media/KITE_LOGO-removebg.png" alt="K.I.T.E. Logo" width="250" />
 </p>
-<h1 align="center">K.I.T.E.</h1>
 <h3 align="center">Kernel Integrated Task Engine</h3>
 
 <p align="center">
@@ -23,13 +22,6 @@ K.I.T.E. is an advanced conversational system designed to run entirely offline o
 
 By prioritizing privacy, performance, and flexibility, K.I.T.E. ensures your data never leaves your environment while granting you a powerful voice enabled assistant.
 
-## Core Features
-
-* **Local AI Execution**: Powered by Ollama, utilizing the `qwen2.5-coder:7b-instruct-q4_K_M` model for exceptional instruction following and code generation.
-* **Semantic Skill Retrieval**: Employs Sentence Transformers and ChromaDB to instantaneously retrieve the most relevant logic based on user intent.
-* **Intelligent Routing**: Automatically decides if a query can be answered inline or if a specialized capability is required.
-* **Dynamic Execution**: Capable of executing local Python capabilities or forwarding requests to external servers.
-* **Voice Integration**: Built in Text to Speech generation via Kokoro and SoundDevice for fluid, natural spoken responses.
 
 ## Architecture Highlights
 
@@ -39,21 +31,16 @@ By prioritizing privacy, performance, and flexibility, K.I.T.E. ensures your dat
 
 ## Installation
 
-Begin by cloning the repository and setting up your local environment.
+Begin by cloning the repository and running the provided installation script. The script will automatically set up your virtual environment, install Python dependencies, pull the required Ollama model, and start the application.
 
 ```bash
-git clone https://github.com/yourusername/kite.git
+git clone https://github.com/BerpyDerpy/K.I.T.E.git
 cd KITE_v3
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+chmod +x install
+./install
 ```
 
-Ensure you have Ollama installed globally and have pulled the required model.
-
-```bash
-ollama pull qwen2.5-coder:7b-instruct-q4_K_M
-```
+Ensure you have Ollama installed globally before running the script.
 
 ## Usage
 
