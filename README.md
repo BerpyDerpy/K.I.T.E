@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="media/KITE_LOGO-removebg.png" alt="K.I.T.E. Logo" width="250" />
+  <img src="media/KITE_LOGO-removebg.png" alt="K.I.T.E. Logo" width="450" />
 </p>
 <h3 align="center">Kernel Integrated Task Engine</h3>
 
@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
   <img src="https://img.shields.io/badge/Ollama-Local_AI-FF4B4B?style=for-the-badge" alt="Ollama" />
   <img src="https://img.shields.io/badge/ChromaDB-Vector_Store-00A650?style=for-the-badge" alt="ChromaDB" />
-  <img src="https://img.shields.io/badge/Privacy-100%25_Local-brightgreen?style=for-the-badge" alt="Privacy First" />
+
 </p>
 
 <p align="center">
