@@ -1,0 +1,56 @@
+#!/bin/bash
+set -e
+
+echo "======================================"
+echo "    K.I.T.E. Installation Script      "
+echo "======================================"
+
+# Check Python
+if ! command -v python3 &> /dev/null; then
+    echo "Error: python3 is not installed."
+    exit 1
+fi
+
+#Virtual environment setup
+echo "=> Setting up virtual environment..."
+if [ ! -d "venv" ]; then
+    python3 -m venv venv
+fi
+source venv/bin/activate
+
+# Install dependencies
+echo "=> Installing Python dependencies..."
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Pull the required Ollama model
+echo "=> Pulling the Ollama model (this may take a while)..."
+# Assuming ollama is installed globally or as a system service.
+if command -v ollama &> /dev/null; then
+    ollama pull qwen2.5-coder:7b-instruct-q4_K_M
+else
+    echo "Warning: Ollama is not installed or not in PATH."
+    echo "Please install Ollama (https://ollama.com) and pull the model manually:"
+    echo "ollama pull qwen2.5-coder:7b-instruct-q4_K_M"
+fi
+
+# Initialize environment variables
+echo "=> Setting up environment variables..."
+if [ ! -f .env ]; then
+    cat <<EOT > .env
+OLLAMA_MODEL=qwen2.5-coder:7b-instruct-q4_K_M
+CHROMA_PATH=./chroma_db
+REGISTRY_PATH=./registry/skills.json
+EOT
+    echo ".env file created with defaults."
+else
+    echo ".env already exists, skipping."
+fi
+
+
+echo "======================================"
+echo " Installation Complete! Starting KITE "
+echo "======================================"
+
+# Run main application
+python main.py

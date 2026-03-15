@@ -1,0 +1,8 @@
+ollama
+chromadb
+sentence-transformers
+httpx
+python-dotenv
+kokoro
+sounddevice
+mcp
