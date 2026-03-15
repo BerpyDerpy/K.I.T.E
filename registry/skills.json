@@ -1,0 +1,17 @@
+[
+  {
+    "id": "filesystem",
+    "name": "Filesystem Manager",
+    "description": "Create, read, list, and delete files and folders.",
+    "mcp_server_url": null,
+    "script": "filesystem.py",
+    "tool_name": "filesystem"
+  },
+  {
+    "id": "web_search",
+    "name": "Web Search",
+    "description": "Search the web for information.",
+    "mcp_server_url": "http://localhost:8001/mcp",
+    "tool_name": "web_search"
+  }
+]
