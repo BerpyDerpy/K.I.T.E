@@ -1,17 +1,107 @@
 [
   {
-    "id": "filesystem",
-    "name": "Filesystem Manager",
-    "description": "Create, read, list, and delete files and folders.",
+    "id": "file_reader",
+    "name": "File Reader",
+    "description": "Read the contents of a file from the local filesystem given its path. Supports text files like .txt, .py, .json, .md, and more.",
     "mcp_server_url": null,
-    "script": "filesystem.py",
-    "tool_name": "filesystem"
+    "tools": ["read_file"]
+  },
+  {
+    "id": "file_writer",
+    "name": "File Writer",
+    "description": "Create a new file or overwrite an existing file on the local filesystem with the provided text content.",
+    "mcp_server_url": null,
+    "tools": ["write_file", "append_file"]
+  },
+  {
+    "id": "directory_manager",
+    "name": "Directory Manager",
+    "description": "List directory contents, create new folders, delete directories, and navigate the local filesystem tree.",
+    "mcp_server_url": null,
+    "tools": ["list_directory", "create_directory", "delete_directory"]
+  },
+  {
+    "id": "web_fetcher",
+    "name": "Web Page Fetcher",
+    "description": "Fetch the raw HTML or text content of a web page given its URL. Useful for scraping, reading documentation, or downloading page data.",
+    "mcp_server_url": "https://mcp.fetcher.example.com",
+    "tools": ["fetch_url", "fetch_text"]
   },
   {
     "id": "web_search",
-    "name": "Web Search",
-    "description": "Search the web for information.",
-    "mcp_server_url": "http://localhost:8001/mcp",
-    "tool_name": "web_search"
+    "name": "Web Search Engine",
+    "description": "Search the internet for current information, news articles, and web results using a query string. Returns titles, snippets, and links.",
+    "mcp_server_url": "https://mcp.search.example.com",
+    "tools": ["search_web", "search_news"]
+  },
+  {
+    "id": "system_info",
+    "name": "System Info Reporter",
+    "description": "Retrieve local system information such as OS name, CPU usage, memory stats, disk space, and running processes.",
+    "mcp_server_url": null,
+    "tools": ["get_os_info", "get_cpu_usage", "get_memory_usage", "get_disk_space"]
+  },
+  {
+    "id": "http_client",
+    "name": "HTTP Request Client",
+    "description": "Send HTTP requests (GET, POST, PUT, DELETE) to any URL with custom headers and body. Returns the response status code, headers, and body.",
+    "mcp_server_url": "https://mcp.httpclient.example.com",
+    "tools": ["http_get", "http_post", "http_put", "http_delete"]
+  },
+  {
+    "id": "api_builder",
+    "name": "API Request Builder",
+    "description": "Construct and send authenticated API requests with query parameters, JSON payloads, and bearer token headers for REST API integrations.",
+    "mcp_server_url": "https://mcp.apibuilder.example.com",
+    "tools": ["build_request", "send_request"]
+  },
+  {
+    "id": "json_parser",
+    "name": "JSON Parser",
+    "description": "Parse a raw JSON string into a structured object, validate JSON syntax, and extract nested values using dot-notation paths like 'user.address.city'.",
+    "mcp_server_url": null,
+    "tools": ["parse_json", "validate_json", "extract_value"]
+  },
+  {
+    "id": "json_transformer",
+    "name": "JSON Transformer",
+    "description": "Transform JSON data by filtering keys, flattening nested structures, merging multiple JSON objects, and converting between JSON and CSV formats.",
+    "mcp_server_url": null,
+    "tools": ["filter_keys", "flatten_json", "merge_json", "json_to_csv"]
+  },
+  {
+    "id": "python_executor",
+    "name": "Python Code Executor",
+    "description": "Execute a snippet of Python code in a sandboxed environment and return the standard output, errors, and return value.",
+    "mcp_server_url": null,
+    "tools": ["run_python"]
+  },
+  {
+    "id": "datetime_utils",
+    "name": "Date and Time Utilities",
+    "description": "Get the current date and time, convert between time zones, calculate differences between two dates, and format timestamps into human-readable strings.",
+    "mcp_server_url": null,
+    "tools": ["get_current_time", "convert_timezone", "date_difference", "format_timestamp"]
+  },
+  {
+    "id": "calendar_manager",
+    "name": "Calendar Event Manager",
+    "description": "Create, list, update, and delete calendar events. Set reminders, check availability, and manage recurring schedules.",
+    "mcp_server_url": "https://mcp.calendar.example.com",
+    "tools": ["create_event", "list_events", "delete_event", "check_availability"]
+  },
+  {
+    "id": "text_summarizer",
+    "name": "Text Summarizer",
+    "description": "Summarize long passages of text into concise bullet points or short paragraphs. Useful for condensing articles, documents, and notes.",
+    "mcp_server_url": "https://mcp.summarizer.example.com",
+    "tools": ["summarize_text", "extract_keywords"]
+  },
+  {
+    "id": "regex_processor",
+    "name": "Regex Text Processor",
+    "description": "Apply regular expression patterns to search, match, replace, and extract substrings from text. Supports common regex operations and pattern testing.",
+    "mcp_server_url": null,
+    "tools": ["regex_search", "regex_replace", "regex_extract"]
   }
 ]
