@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K.I.T.E — Idle</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #020202;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .container {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Faint ambient halo */
+    .glow {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(180, 180, 195, 0.04) 0%, transparent 70%);
+      animation: glowShift 8s ease-in-out infinite;
+      pointer-events: none;
+    }
+
+    @keyframes glowShift {
+
+      0%,
+      100% {
+        transform: scale(1);
+        opacity: 0.5;
+      }
+
+      50% {
+        transform: scale(1.2);
+        opacity: 0.8;
+      }
+    }
+
+    .kite-svg {
+      width: 1536px;
+      height: 1024px;
+      filter: drop-shadow(0 0 4px rgba(170, 170, 185, 0.1));
+    }
+
+    .kite-svg svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Blade styling ── */
+    .blade {
+      fill: #b8b8c4;
+      transform-origin: center;
+    }
+
+    /* ── Core (central cross) ── */
+    .core {
+      fill: #b8b8c4;
+      transform-origin: 755px 505px;
+      /* geometric center of core path */
+      animation: heartbeat 5s ease-in-out infinite;
+    }
+
+    /* ── Asynchronous blade undulation ──
+       Each blade gets its own scale axis + timing offset
+       so they never move in unison. */
+
+    /* Top-right blade — elongates along its radial axis */
+    .blade--tr {
+      transform-origin: 870px 470px;
+      animation: undulateA 6.4s ease-in-out infinite;
+    }
+
+    /* Top-left blade */
+    .blade--tl {
+      transform-origin: 640px 470px;
+      animation: undulateB 7.1s ease-in-out infinite;
+    }
+
+    /* Bottom-left blade */
+    .blade--bl {
+      transform-origin: 690px 600px;
+      animation: undulateC 5.8s ease-in-out infinite;
+    }
+
+    /* Bottom-right blade */
+    .blade--br {
+      transform-origin: 810px 600px;
+      animation: undulateD 6.9s ease-in-out infinite;
+    }
+
+    /* Each keyframe pair is slightly unique:
+       one stretches while the opposite retracts */
+    @keyframes undulateA {
+      0% {
+        transform: scale(1, 1);
+        opacity: 0.82;
+      }
+
+      30% {
+        transform: scale(1.04, 0.97);
+        opacity: 0.9;
+      }
+
+      55% {
+        transform: scale(0.97, 1.03);
+        opacity: 0.78;
+      }
+
+      80% {
+        transform: scale(1.02, 0.99);
+        opacity: 0.86;
+      }
+
+      100% {
+        transform: scale(1, 1);
+        opacity: 0.82;
+      }
+    }
+
+    @keyframes undulateB {
+      0% {
+        transform: scale(1, 1);
+        opacity: 0.80;
+      }
+
+      25% {
+        transform: scale(0.96, 1.04);
+        opacity: 0.74;
+      }
+
+      50% {
+        transform: scale(1.03, 0.98);
+        opacity: 0.88;
+      }
+
+      75% {
+        transform: scale(0.98, 1.02);
+        opacity: 0.76;
+      }
+
+      100% {
+        transform: scale(1, 1);
+        opacity: 0.80;
+      }
+    }
+
+    @keyframes undulateC {
+      0% {
+        transform: scale(1, 1);
+        opacity: 0.78;
+      }
+
+      20% {
+        transform: scale(1.03, 0.96);
+        opacity: 0.85;
+      }
+
+      45% {
+        transform: scale(0.97, 1.04);
+        opacity: 0.72;
+      }
+
+      70% {
+        transform: scale(1.01, 0.98);
+        opacity: 0.82;
+      }
+
+      100% {
+        transform: scale(1, 1);
+        opacity: 0.78;
+      }
+    }
+
+    @keyframes undulateD {
+      0% {
+        transform: scale(1, 1);
+        opacity: 0.84;
+      }
+
+      35% {
+        transform: scale(0.97, 1.03);
+        opacity: 0.76;
+      }
+
+      60% {
+        transform: scale(1.04, 0.97);
+        opacity: 0.9;
+      }
+
+      85% {
+        transform: scale(0.99, 1.01);
+        opacity: 0.8;
+      }
+
+      100% {
+        transform: scale(1, 1);
+        opacity: 0.84;
+      }
+    }
+
+    /* ── Heartbeat: slow dilation of the central void ── */
+    @keyframes heartbeat {
+      0% {
+        transform: scale(1);
+      }
+
+      /* Long dormant pause */
+      70% {
+        transform: scale(1);
+      }
+
+      /* Quick subtle dilation — "lub" */
+      76% {
+        transform: scale(1.06);
+      }
+
+      79% {
+        transform: scale(1);
+      }
+
+      /* Second beat — "dub" */
+      83% {
+        transform: scale(1.04);
+      }
+
+      86% {
+        transform: scale(1);
+      }
+
+      100% {
+        transform: scale(1);
+      }
+    }
+
+    /* ── Audio-Reactive Controls ── */
+    .controls {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 15px;
+      border-radius: 8px;
+      color: #b8b8c4;
+      font-family: sans-serif;
+      border: 1px solid rgba(184, 184, 196, 0.2);
+    }
+
+    .controls input {
+      margin-top: 10px;
+      color: #b8b8c4;
+    }
+
+    /* Pause idle animations when reacting to audio */
+    .audio-reactive .blade,
+    .audio-reactive .core,
+    .audio-reactive .glow {
+      animation: none !important;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="controls">
+    <label for="audioInput">Select .mp3 to play audio-reactive animation</label>
+    <br>
+    <input type="file" id="audioInput" accept=".mp3,audio/*" />
+    <audio id="audioPlayer" style="display:none;"></audio>
+  </div>
+  <div class="container">
+    <div class="glow"></div>
+    <div class="kite-svg">
+      <svg version="1.1" viewBox="0 0 1536 1024" xmlns="http://www.w3.org/2000/svg">
+        <g>
+          <!-- Top-right blade -->
+          <path class="blade blade--tr"
+            d="m 917.49371,508.37338 c -39.53155,-1.61052 -62.89345,-5.53837 -81.41013,-13.68754 -13.27684,-5.84312 -20.12239,-10.53251 -30.08987,-20.61235 -17.6625,-17.86161 -32.23913,-49.36964 -44.40184,-95.97652 -2.50168,-9.58632 -4.38388,-17.5943 -4.18267,-17.79551 0.20121,-0.20122 1.60997,2.92245 3.13057,6.94149 7.03131,18.58421 20.37394,44.73629 30.76841,60.30733 6.77513,10.14923 18.74823,24.38952 26.65394,31.70107 8.41431,7.78192 22.04979,17.27607 31.97072,22.26067 19.60918,9.85228 47.87447,19.77942 68.56087,24.07949 7.15,1.48626 13.1875,2.8725 13.41667,3.08053 0.22916,0.20803 -1.34584,0.2901 -3.5,0.18238 -2.15417,-0.10772 -7.06667,-0.32419 -10.91667,-0.48104 z" />
+
+          <!-- Top-left blade -->
+          <path class="blade blade--tl"
+            d="m 572.49371,507.87895 c 42.67418,-7.97921 78.20908,-21.72746 102.5,-39.65667 24.1668,-17.8376 47.28497,-51.01999 65.60964,-94.172 2.9195,-6.875 5.32667,-12.01554 5.34927,-11.42343 0.0637,1.66967 -5.53146,21.24374 -11.12615,38.92343 -16.56147,52.3357 -33.14359,76.606 -62.33276,91.23293 -18.09766,9.06888 -39.05287,13.01414 -81,15.24994 -22.01562,1.17344 -25.93053,1.14167 -19,-0.1542 z" />
+
+          <!-- Core — the central cross / void -->
+          <path class="core"
+            d="m 750.72139,608.05028 c -0.41272,-30.525 -1.02897,-60.25272 -1.36944,-66.0616 l -0.61905,-10.56159 -4.80821,-1.70773 c -5.62142,-1.99655 -11.58451,-8.30531 -12.5092,-13.23434 l -0.60779,-3.23982 -13.157,-0.67775 c -7.23634,-0.37276 -28.23199,-1.01981 -46.65699,-1.4379 -24.79438,-0.5626 -28.95229,-0.80456 -16,-0.93105 22.82486,-0.2229 54.10681,-1.06529 65.7052,-1.76936 l 9.20519,-0.55879 1.55266,-5.34097 c 1.89845,-6.53042 5.98966,-10.84731 12.45726,-13.14439 l 4.80927,-1.7081 0.61798,-10.06331 c 0.3399,-5.53481 0.95894,-34.1383 1.37567,-63.5633 l 0.75767,-53.5 0.73248,32.5 c 0.40287,17.875 1.0223,46.59682 1.37652,63.82627 0.57058,27.75283 0.83033,31.38428 2.27707,31.83478 9.04637,2.81695 14.61845,8.26875 15.76231,15.42207 l 0.59804,3.73991 10.13634,0.63908 c 5.57499,0.35149 25.66134,0.962 44.63634,1.35668 l 34.5,0.7176 -35.5,0.75019 c -45.34507,0.95825 -53.00472,1.47181 -53.67712,3.59893 -2.61624,8.27646 -7.11074,13.24057 -13.76757,15.2061 l -4.33046,1.27863 -0.64978,35.56488 c -0.35737,19.56068 -0.97539,49.28988 -1.37338,66.06488 l -0.72361,30.5 z" />
+
+          <!-- Bottom-left blade -->
+          <path class="blade blade--bl"
+            d="M 742.19321,656.91479 C 737.4511,644.01737 729.22062,626.39302 721.48303,612.56702 700.19972,574.53668 677.51447,552.10798 645.64842,537.59 c -21.37798,-9.73967 -45.93104,-18.09576 -63.92645,-21.75594 -14.74195,-2.99845 -10.80938,-3.31049 16.36983,-1.2989 36.34088,2.68967 54.24648,6.23518 70.59158,13.97792 31.01672,14.69276 46.0143,34.95292 62.20852,84.0372 7.02742,21.2999 15.45702,51.00005 14.90438,52.51284 -0.16641,0.45553 -1.7878,-3.21121 -3.60307,-8.14833 z" />
+
+          <!-- Bottom-right blade -->
+          <path class="blade blade--br"
+            d="m 757.07266,666.16847 c -0.20974,-3.67099 10.27603,-40.32575 17.02639,-59.51858 16.62772,-47.27645 35.19335,-68.88609 70.64771,-82.23108 7.71448,-2.90372 27.33203,-6.90639 40.74695,-8.3138 12.12789,-1.27238 46.63525,-3.25281 47.18031,-2.70775 0.21508,0.21507 -3.78751,1.18703 -8.89463,2.1599 -27.85238,5.3057 -67.25513,20.74803 -88.28568,34.60005 -15.93183,10.49369 -35.4883,32.35625 -49.45609,55.28795 -9.36595,15.37659 -22.08169,42.54604 -28.36419,60.60512 -0.39782,1.14356 -0.54059,1.17165 -0.60077,0.11819 z" />
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <script>
+    const audioInput = document.getElementById('audioInput');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const blades = {
+      tl: document.querySelector('.blade--tl'),
+      tr: document.querySelector('.blade--tr'),
+      bl: document.querySelector('.blade--bl'),
+      br: document.querySelector('.blade--br')
+    };
+    const body = document.body;
+    
+    // Vectors pointing away from the core (755, 505) for flaring outwards
+    const vectors = {
+      tl: { x: -115, y: -35 },
+      tr: { x: 115, y: -35 },
+      bl: { x: -65, y: 95 },
+      br: { x: 55, y: 95 }
+    };
+    
+    // Normalize vectors
+    for (let key in vectors) {
+      const v = vectors[key];
+      const mag = Math.sqrt(v.x * v.x + v.y * v.y);
+      vectors[key].x /= mag;
+      vectors[key].y /= mag;
+    }
+    
+    let audioCtx, analyser, dataArray;
+    let isPlaying = false;
+    let animationId;
+    const smoothBands = [0, 0, 0, 0];
+    
+    audioInput.addEventListener('change', function(e) {
+      const file = this.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        audioPlayer.src = url;
+        audioPlayer.play().catch(err => console.error("Audio playback failed:", err));
+      }
+    });
+
+    audioPlayer.addEventListener('play', () => {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createMediaElementSource(audioPlayer);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      isPlaying = true;
+      body.classList.add('audio-reactive');
+      renderFrame();
+    });
+
+    function resetIdle() {
+      isPlaying = false;
+      body.classList.remove('audio-reactive');
+      for (let key in blades) {
+        blades[key].style.transform = '';
+      }
+      cancelAnimationFrame(animationId);
+    }
+
+    audioPlayer.addEventListener('pause', resetIdle);
+    audioPlayer.addEventListener('ended', resetIdle);
+
+    function renderFrame() {
+      if (!isPlaying) return;
+      animationId = requestAnimationFrame(renderFrame);
+      analyser.getByteFrequencyData(dataArray);
+      
+      // We focus on the lower bins (e.g. first 80) which contain more musical energy
+      const binsPerBand = 20;
+      const keys = ['tl', 'tr', 'bl', 'br'];
+      const maxDistance = 80; // Maximum flare distance in px
+      
+      for (let i = 0; i < 4; i++) {
+          let sum = 0;
+          for (let j = 0; j < binsPerBand; j++) {
+              sum += dataArray[i * binsPerBand + j];
+          }
+          // Normalize to 0-1
+          let currentAmp = (sum / binsPerBand) / 255;
+          
+          // Non-linear amplification for punchier visual beats
+          currentAmp = Math.pow(currentAmp, 1.5);
+          
+          // Smooth the amplitude over frames
+          smoothBands[i] = smoothBands[i] * 0.75 + currentAmp * 0.25;
+          
+          let amp = smoothBands[i];
+          const key = keys[i];
+          
+          // Calculate Outward translation
+          const dx = vectors[key].x * (amp * maxDistance);
+          const dy = vectors[key].y * (amp * maxDistance);
+          // Scale slightly on top to emphasize the flare
+          const scale = 1 + (amp * 0.1); 
+          
+          blades[key].style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+      }
+    }
+  </script>
+</body>
+
+</html>
