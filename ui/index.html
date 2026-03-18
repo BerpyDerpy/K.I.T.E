@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>K.I.T.E — Control Interface</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #020202;
+      font-family: 'Inter', sans-serif;
+      color: #b8b8c4;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Start overlay — captures the real user gesture for AudioContext ── */
+    .start-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(2, 2, 2, 0.92);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: opacity 0.6s ease, visibility 0.6s ease;
+    }
+
+    .start-overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .start-overlay .prompt-ring {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 1px solid rgba(184, 184, 196, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 28px;
+      animation: pulseRing 3s ease-in-out infinite;
+      position: relative;
+    }
+
+    .start-overlay .prompt-ring::before {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      border: 1px solid rgba(184, 184, 196, 0.06);
+      animation: pulseRing 3s ease-in-out infinite 0.3s;
+    }
+
+    .start-overlay .prompt-icon {
+      font-size: 32px;
+      color: rgba(184, 184, 196, 0.5);
+    }
+
+    .start-overlay .prompt-text {
+      font-size: 14px;
+      font-weight: 400;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(184, 184, 196, 0.4);
+      animation: fadeIn 1s ease 0.5s forwards;
+      opacity: 0;
+    }
+
+    .start-overlay .prompt-sub {
+      font-size: 11px;
+      color: rgba(184, 184, 196, 0.2);
+      margin-top: 8px;
+      letter-spacing: 0.5px;
+      animation: fadeIn 1s ease 1s forwards;
+      opacity: 0;
+    }
+
+    @keyframes pulseRing {
+      0%, 100% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+
+    /* ── Animation iframe: fills most of the viewport ── */
+    .animation-frame {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .animation-frame iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    /* ── Status indicator (top-right) ── */
+    .connection-status {
+      position: fixed;
+      top: 20px;
+      right: 24px;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(184, 184, 196, 0.12);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: rgba(184, 184, 196, 0.6);
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+
+    .connection-status.visible {
+      opacity: 1;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #555;
+      transition: background 0.6s ease, box-shadow 0.6s ease;
+    }
+
+    .status-dot.connected {
+      background: #4ade80;
+      box-shadow: 0 0 8px rgba(74, 222, 128, 0.5);
+    }
+
+    .status-dot.error {
+      background: #f87171;
+      box-shadow: 0 0 8px rgba(248, 113, 113, 0.5);
+    }
+
+    /* ── Message panels overlay at bottom ── */
+    .message-panels {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 50;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: rgba(255, 255, 255, 0.03);
+      border-top: 1px solid rgba(184, 184, 196, 0.08);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+
+    .message-panels.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .message-panel {
+      padding: 20px 28px;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      background: rgba(2, 2, 2, 0.85);
+      min-height: 100px;
+      max-height: 140px;
+      overflow-y: auto;
+      position: relative;
+    }
+
+    .message-panel:first-child {
+      border-right: 1px solid rgba(184, 184, 196, 0.06);
+    }
+
+    /* Scrollbar styling */
+    .message-panel::-webkit-scrollbar {
+      width: 3px;
+    }
+
+    .message-panel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .message-panel::-webkit-scrollbar-thumb {
+      background: rgba(184, 184, 196, 0.15);
+      border-radius: 3px;
+    }
+
+    .panel-label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: rgba(184, 184, 196, 0.3);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .panel-label .icon {
+      font-size: 10px;
+      opacity: 0.5;
+    }
+
+    .panel-label.user-label .accent {
+      color: rgba(147, 197, 253, 0.5);
+    }
+
+    .panel-label.agent-label .accent {
+      color: rgba(167, 243, 208, 0.5);
+    }
+
+    .message-text {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      font-size: 13px;
+      font-weight: 300;
+      line-height: 1.65;
+      color: rgba(184, 184, 196, 0.75);
+      white-space: pre-wrap;
+      word-break: break-word;
+      transition: color 0.4s ease, opacity 0.4s ease;
+    }
+
+    .message-text.fresh {
+      color: rgba(220, 220, 230, 0.95);
+    }
+
+    .message-text.user-text.fresh {
+      color: rgba(165, 205, 255, 0.95);
+    }
+
+    .message-text.agent-text.fresh {
+      color: rgba(180, 245, 215, 0.95);
+    }
+
+    .message-text.empty {
+      color: rgba(184, 184, 196, 0.2);
+      font-style: italic;
+    }
+
+    /* ── Cursor blink on agent text ── */
+    .typing-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 14px;
+      background: rgba(167, 243, 208, 0.6);
+      margin-left: 3px;
+      vertical-align: text-bottom;
+      animation: cursorBlink 1s ease-in-out infinite;
+    }
+
+    @keyframes cursorBlink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    /* ── Debug audio input ── */
+    .debug-audio {
+      position: fixed;
+      top: 20px;
+      left: 24px;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(184, 184, 196, 0.12);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      font-size: 11px;
+      font-weight: 500;
+      color: rgba(184, 184, 196, 0.5);
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+
+    .debug-audio.visible {
+      opacity: 1;
+    }
+
+    .debug-audio label {
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(184, 184, 196, 0.2);
+      transition: background 0.2s;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .debug-audio label:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .debug-audio input[type="file"] {
+      display: none;
+    }
+
+    .debug-audio .debug-status {
+      font-size: 10px;
+      color: rgba(184, 184, 196, 0.3);
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .message-panels {
+        grid-template-columns: 1fr;
+      }
+
+      .message-panel:first-child {
+        border-right: none;
+        border-bottom: 1px solid rgba(184, 184, 196, 0.06);
+      }
+
+      .message-panel {
+        min-height: 70px;
+        max-height: 100px;
+        padding: 14px 20px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Start overlay — one click to activate audio + connect -->
+  <div class="start-overlay" id="startOverlay">
+    <div class="prompt-ring">
+      <span class="prompt-icon">◇</span>
+    </div>
+    <div class="prompt-text">Click anywhere to begin</div>
+    <div class="prompt-sub">Audio visualization requires user interaction</div>
+  </div>
+
+  <!-- Debug: audio file input -->
+  <div class="debug-audio" id="debugAudio">
+    <span>🔊 Debug</span>
+    <label for="audioFileInput">Load MP3</label>
+    <input type="file" id="audioFileInput" accept="audio/*">
+    <span class="debug-status" id="debugStatus">No file loaded</span>
+  </div>
+
+  <!-- Connection status pill -->
+  <div class="connection-status" id="connectionStatus">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusLabel">Initializing</span>
+  </div>
+
+  <!-- KITE animation (embedded untouched) -->
+  <div class="animation-frame">
+    <iframe id="kiteFrame" src="kite_breathing.html"></iframe>
+  </div>
+
+  <!-- Message display panels -->
+  <div class="message-panels" id="messagePanels">
+    <div class="message-panel" id="userPanel">
+      <div class="panel-label user-label">
+        <span class="icon">▸</span>
+        <span class="accent">User</span> Input
+      </div>
+      <div class="message-text user-text empty" id="userText">Awaiting input…</div>
+    </div>
+    <div class="message-panel" id="agentPanel">
+      <div class="panel-label agent-label">
+        <span class="icon">◆</span>
+        <span class="accent">KITE</span> Response
+      </div>
+      <div class="message-text agent-text empty" id="agentText">Initializing…</div>
+    </div>
+  </div>
+
+  <script>
+    // ── Elements ──
+    const kiteFrame = document.getElementById('kiteFrame');
+    const startOverlay = document.getElementById('startOverlay');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const messagePanels = document.getElementById('messagePanels');
+    const debugAudioEl = document.getElementById('debugAudio');
+    const audioFileInput = document.getElementById('audioFileInput');
+    const debugStatus = document.getElementById('debugStatus');
+    const statusDot = document.getElementById('statusDot');
+    const statusLabel = document.getElementById('statusLabel');
+    const userTextEl = document.getElementById('userText');
+    const agentTextEl = document.getElementById('agentText');
+
+    let lastMessageCount = 0;
+    let activated = false;
+
+    // ── Activation: user clicks once to unlock audio + connect ──
+    startOverlay.addEventListener('click', () => {
+      if (activated) return;
+      activated = true;
+
+      // Fade out the overlay
+      startOverlay.classList.add('hidden');
+
+      // This click is a real user gesture — use it to activate audio in the iframe
+      try {
+        const iframeDoc = kiteFrame.contentDocument || kiteFrame.contentWindow.document;
+
+        // Click the connect button (this inherits the user gesture)
+        const connectBtn = iframeDoc.getElementById('connectBtn');
+        if (connectBtn) {
+          connectBtn.click();
+        }
+
+        // Hide the iframe controls panel entirely
+        const controls = iframeDoc.querySelector('.controls');
+        if (controls) {
+          controls.style.display = 'none';
+        }
+      } catch (e) {
+        console.warn('Could not access iframe:', e);
+      }
+
+      // Show the UI elements
+      setTimeout(() => {
+        connectionStatus.classList.add('visible');
+        debugAudioEl.classList.add('visible');
+        statusDot.classList.add('connected');
+        statusLabel.textContent = 'Connected';
+      }, 300);
+
+      setTimeout(() => {
+        messagePanels.classList.add('visible');
+      }, 600);
+
+      // Start message polling
+      pollMessages();
+      setInterval(pollMessages, 1000);
+    });
+
+    // ── Debug: load audio file directly into iframe's player ──
+    audioFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      debugStatus.textContent = `Loaded: ${file.name}`;
+
+      try {
+        const iframeDoc = kiteFrame.contentDocument || kiteFrame.contentWindow.document;
+        const iframeAudioPlayer = iframeDoc.getElementById('audioPlayer');
+
+        if (iframeAudioPlayer) {
+          const url = URL.createObjectURL(file);
+          iframeAudioPlayer.src = url;
+          iframeAudioPlayer.play().then(() => {
+            debugStatus.textContent = `Playing: ${file.name}`;
+          }).catch(err => {
+            debugStatus.textContent = `Play failed: ${err.message}`;
+            console.error('Debug audio play failed:', err);
+          });
+        } else {
+          debugStatus.textContent = 'Error: audioPlayer not found in iframe';
+        }
+      } catch (err) {
+        debugStatus.textContent = `Error: ${err.message}`;
+        console.error('Debug audio error:', err);
+      }
+    });
+
+    // ── Poll for messages ──
+    async function pollMessages() {
+      try {
+        const response = await fetch('/api/messages');
+        if (!response.ok) throw new Error('API error');
+
+        const data = await response.json();
+        const messages = data.messages || [];
+
+        if (messages.length !== lastMessageCount) {
+          // Find the latest user and agent messages
+          let latestUser = null;
+          let latestAgent = null;
+
+          for (let i = messages.length - 1; i >= 0; i--) {
+            if (!latestUser && messages[i].role === 'user') {
+              latestUser = messages[i];
+            }
+            if (!latestAgent && messages[i].role === 'agent') {
+              latestAgent = messages[i];
+            }
+            if (latestUser && latestAgent) break;
+          }
+
+          // Update user text
+          if (latestUser) {
+            userTextEl.textContent = latestUser.text;
+            userTextEl.classList.remove('empty');
+            userTextEl.classList.add('fresh');
+            setTimeout(() => userTextEl.classList.remove('fresh'), 3000);
+          }
+
+          // Update agent text
+          if (latestAgent) {
+            agentTextEl.textContent = latestAgent.text;
+            agentTextEl.classList.remove('empty');
+            agentTextEl.classList.add('fresh');
+            setTimeout(() => agentTextEl.classList.remove('fresh'), 3000);
+          }
+
+          // Update connection status
+          statusDot.classList.add('connected');
+          statusDot.classList.remove('error');
+          statusLabel.textContent = 'Connected';
+
+          lastMessageCount = messages.length;
+        }
+      } catch (err) {
+        statusDot.classList.remove('connected');
+        statusDot.classList.add('error');
+        statusLabel.textContent = 'Offline';
+      }
+    }
+  </script>
+</body>
+
+</html>

@@ -157,14 +157,14 @@ def route(user_query: str, retrieved_skills: list[dict]) -> dict:
     try:
         data = _call_ollama(system_prompt, user_query)
         return _validate(data)
-    except (json.JSONDecodeError, ValueError) as first_error:
+    except Exception as first_error:
         print(f"  [router] First attempt failed: {first_error}")
 
     # --- Retry once ---
     try:
         data = _retry_with_correction(system_prompt, user_query, str(first_error))
         return _validate(data)
-    except (json.JSONDecodeError, ValueError) as second_error:
+    except Exception as second_error:
         print(f"  [router] Retry also failed: {second_error}")
         # Return a safe fallback so the pipeline doesn't crash
         return {

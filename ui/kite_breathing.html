@@ -317,10 +317,9 @@
 
 <body>
   <div class="controls">
-    <label for="audioInput">Select .mp3 to play audio-reactive animation</label>
-    <br>
-    <input type="file" id="audioInput" accept=".mp3,audio/*" />
+    <button id="connectBtn" style="padding: 10px 20px; font-size: 16px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(184, 184, 196, 0.5); color: #b8b8c4; border-radius: 4px; cursor: pointer;">Connect to K.I.T.E.</button>
     <audio id="audioPlayer" style="display:none;"></audio>
+    <p id="statusText" style="margin-top: 10px; font-size: 12px; color: #888;"></p>
   </div>
   <div class="container">
     <div class="glow"></div>
@@ -353,7 +352,8 @@
   </div>
 
   <script>
-    const audioInput = document.getElementById('audioInput');
+    const connectBtn = document.getElementById('connectBtn');
+    const statusText = document.getElementById('statusText');
     const audioPlayer = document.getElementById('audioPlayer');
     const blades = {
       tl: document.querySelector('.blade--tl'),
@@ -385,15 +385,41 @@
     let isPlaying = false;
     let animationId;
     const smoothBands = [0, 0, 0, 0];
+    let lastUpdatedAt = 0;
     
-    audioInput.addEventListener('change', function(e) {
-      const file = this.files[0];
-      if (file) {
-        const url = URL.createObjectURL(file);
-        audioPlayer.src = url;
-        audioPlayer.play().catch(err => console.error("Audio playback failed:", err));
-      }
+    connectBtn.addEventListener('click', () => {
+      // Need user gesture to unlock audio context in browsers
+      audioPlayer.play().catch(() => {});
+      
+      connectBtn.style.display = 'none';
+      statusText.innerText = 'Connecting to K.I.T.E...';
+      
+      setInterval(pollForAudio, 500);
     });
+
+    async function pollForAudio() {
+      try {
+        const response = await fetch('http://localhost:8080/status');
+        if (!response.ok) return;
+        const data = await response.json();
+        
+        if (data.updated_at > lastUpdatedAt) {
+          lastUpdatedAt = data.updated_at;
+          
+          const audioResponse = await fetch(`http://localhost:8080/audio.wav?t=${lastUpdatedAt}`);
+          const blob = await audioResponse.blob();
+          const url = URL.createObjectURL(blob);
+          
+          audioPlayer.src = url;
+          audioPlayer.play().catch(err => console.error("Playback failed:", err));
+          statusText.innerText = 'KITE is speaking...';
+        } else if (audioPlayer.paused) {
+          statusText.innerText = 'Connected. Waiting for KITE...';
+        }
+      } catch (err) {
+        statusText.innerText = 'Connection to K.I.T.E. offline. Retrying...';
+      }
+    }
 
     audioPlayer.addEventListener('play', () => {
       beatTimeouts.forEach(clearTimeout);

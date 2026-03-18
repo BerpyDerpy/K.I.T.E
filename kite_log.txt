@@ -1,0 +1,18 @@
+
+    __ __   ____  ______  ______
+   / //_/  /  _/ /_  __/ / ____/
+  / ,<     / /    / /   / __/   
+ / /| |  _/ /    / /   / /___   
+/_/ |_| /___/   /_/   /_____/   
+                                
+[11:06:24 INIT    ] Loading skills registry...
+[retriever] Loaded 15 skills from ./registry/skills.json
+[11:06:24 INIT    ] Building ChromaDB index...
+[retriever] Loading embedding model: all-MiniLM-L6-v2 ...
+Loading weights:   0%|          | 0/103 [00:00<?, ?it/s]Loading weights: 100%|██████████| 103/103 [00:00<00:00, 7193.75it/s]
+[retriever] Embedding 15 skill descriptions ...
+[retriever] Stored 15 skills in ChromaDB at './chroma_db'
+[11:06:31 READY   ] K.I.T.E. is online.
+
+============================================================
+> 

@@ -6,10 +6,33 @@ import asyncio
 import json
 import threading
 from datetime import datetime
+import os
+import warnings
+
+# --- Suppress Startup Warnings ---
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
+import logging
+logging.getLogger("sentence_transformers").setLevel(logging.ERROR)
+try:
+    import transformers
+    transformers.logging.set_verbosity_error()
+except ImportError:
+    pass
+try:
+    from huggingface_hub import utils
+    utils.logging.set_verbosity_error()
+except ImportError:
+    pass
+# ---------------------------------
+
 import ollama
 
 from core import retriever, router, executor
 from audio import tts
+from ui.api import start_server_in_background, push_message
 
 # Constants
 MODEL = getattr(router, "MODEL", "qwen2.5-coder:7b-instruct-q4_K_M")
@@ -68,16 +91,24 @@ def main():
     retriever.build_index(skills)
 
     log_stage("ready", "K.I.T.E. is online.")
-    play_audio("KITE is online.")
+    start_server_in_background(8080)
+    startup_msg = (
+        "KITE is now online and fully operational. "
+        "All systems have been initialized, skills are loaded, and the audio pipeline is ready. "
+        "I am standing by and awaiting your first query. Feel free to ask me anything."
+    )
+    push_message("agent", startup_msg)
+    play_audio(startup_msg)
 
     while True:
         try:
             print("\n" + "=" * 60)
-            user_input = input("> ").strip()
+            user_input = input("> ").strip() # User input Line 76.
             if not user_input:
                 continue
 
             log_stage("input", user_input)
+            push_message("user", user_input)
 
             # 1. Retrieve
             matched_skills = retriever.retrieve_skill(user_input, top_k=5)
@@ -119,6 +150,7 @@ def main():
 
             # 4. Speak & Output
             log_stage("output", final_response)
+            push_message("agent", final_response)
             play_audio(final_response)
 
         except KeyboardInterrupt:
