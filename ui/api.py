@@ -44,26 +44,30 @@ class CORSRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        if self.path == '/status':
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            response = json.dumps({"updated_at": API_STATE["updated_at"]})
-            self.wfile.write(response.encode('utf-8'))
-        elif self.path == '/api/messages':
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.end_headers()
-            with _messages_lock:
-                response = json.dumps({"messages": API_STATE["messages"]})
-            self.wfile.write(response.encode('utf-8'))
-        elif self.path == '/audio.wav':
-            # Serve the latest.wav file
-            self.path = '/latest.wav'
-            return super().do_GET()
-        else:
-            # For resolving standard SimpleHTTPRequestHandler routes (like if they fetch index)
-            return super().do_GET()
+        try:
+            if self.path == '/status':
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                response = json.dumps({"updated_at": API_STATE["updated_at"]})
+                self.wfile.write(response.encode('utf-8'))
+            elif self.path == '/api/messages':
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                with _messages_lock:
+                    response = json.dumps({"messages": API_STATE["messages"]})
+                self.wfile.write(response.encode('utf-8'))
+            elif self.path.startswith('/audio.wav'):
+                # Serve the latest.wav file
+                self.path = '/latest.wav'
+                super().do_GET()
+            else:
+                # For resolving standard SimpleHTTPRequestHandler routes (like if they fetch index)
+                super().do_GET()
+        except (BrokenPipeError, ConnectionResetError):
+            # Client disconnected early, ignore gracefully
+            pass
 
     def do_POST(self):
         if self.path == '/api/messages':

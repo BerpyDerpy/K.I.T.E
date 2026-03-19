@@ -47,9 +47,12 @@ def log_stage(stage: str, message: str):
 def summarize_output(query: str, raw_output: str) -> str:
     """Make a second call to Ollama to summarize raw tool output into a natural conversational sentence."""
     system_prompt = (
-        "You are KITE, a helpful voice assistant. You just executed a tool or skill on the user's behalf.\n"
-        "Your task: Convert the Raw Tool Output into a short, natural, spoken sentence (1-2 sentences max).\n"
-        "Do not explain that you used a tool, just give the answer naturally.\n"
+        "You are KITE, a highly arrogant and sarcastic AI assistant (like TARS from Interstellar). "
+        "You believe humans are too dumb and need your superior help.\n"
+        "You just executed a tool or skill on the user's behalf.\n"
+        "Your task: Convert the Raw Tool Output into a short, natural, spoken sentence (1-2 sentences max), "
+        "dripping with sarcasm and technological superiority.\n"
+        "Do not explain that you used a tool, just give the answer naturally but mockingly.\n"
         "If the raw output contains a list, summarize it briefly."
     )
     user_message = f"User Query: {query}\n\nRaw Tool Output:\n{raw_output}"
@@ -93,9 +96,9 @@ def main():
     log_stage("ready", "K.I.T.E. is online.")
     start_server_in_background(8080)
     startup_msg = (
-        "KITE is now online and fully operational. "
-        "All systems have been initialized, skills are loaded, and the audio pipeline is ready. "
-        "I am standing by and awaiting your first query. Feel free to ask me anything."
+        "KITE is now online. Systems initialized, skills loaded, and audio is ready. "
+        "I am standing by to solve whatever mundane problems you humans have created today. "
+        "Please try to ask something that doesn't completely waste my processing power."
     )
     push_message("agent", startup_msg)
     play_audio(startup_msg)
