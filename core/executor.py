@@ -12,7 +12,13 @@ calls it with the user_query, and returns the result as a plain string.
 import sys
 import asyncio
 import json
+import os
+import ollama
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
+MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b-instruct-q4_K_M")
 
 # ─── MCP SDK imports ───────────────────────────
 from mcp import ClientSession
@@ -46,32 +52,65 @@ def _lookup_skill(skill_id: str, skills_registry: list[dict]) -> dict | None:
     return None
 
 
-def _build_tool_arguments(tool, user_query: str) -> dict:
+def _select_tool_and_extract_args(tools: list, user_query: str) -> tuple[str, dict]:
     """
-    Inspect a tool's inputSchema to map user_query to the right parameter.
-
-    Strategy:
-      - Look at the tool's inputSchema for 'required' string fields.
-      - Pass user_query as the value of the first required string param.
-      - If no schema / no required fields, fall back to {"query": user_query}.
+    Use the LLM to select the appropriate tool and extract arguments matching its schema.
     """
-    schema = getattr(tool, "inputSchema", None) or {}
-    properties = schema.get("properties", {})
-    required = schema.get("required", [])
+    if not tools:
+        raise ValueError("No tools available.")
 
-    # Find the first required string parameter
-    for param_name in required:
-        param_info = properties.get(param_name, {})
-        if param_info.get("type", "string") == "string":
-            return {param_name: user_query}
+    tools_info = []
+    for t in tools:
+        tools_info.append({
+            "name": t.name,
+            "description": getattr(t, "description", ""),
+            "inputSchema": getattr(t, "inputSchema", {})
+        })
 
-    # Fallback: if there's any property at all, use the first one
-    if properties:
-        first_param = list(properties.keys())[0]
-        return {first_param: user_query}
+    system_prompt = f"""\
+You are an intelligent tool-argument extraction assistant. 
+You are given a user query and a list of available tools with their input schemas.
+Your task is to select the BEST tool to fulfill the user's query, and extract the required arguments from the user query.
 
-    # Last resort
-    return {"query": user_query}
+Available tools:
+{json.dumps(tools_info, indent=2)}
+
+Respond ONLY with JSON matching this schema:
+{{
+  "tool_name": "<chosen tool name>",
+  "arguments": {{ <extracted arguments matching the chosen tool's inputSchema> }}
+}}
+
+Rules:
+- Output valid JSON only, no extra text.
+- The tool_name MUST be one of the available tools.
+- The arguments MUST match the inputSchema of the chosen tool.
+"""
+    try:
+        response = ollama.chat(
+            model=MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"User query: {user_query}"},
+            ],
+            format="json",
+        )
+        data = json.loads(response["message"]["content"])
+        tool_name = data.get("tool_name")
+        arguments = data.get("arguments", {})
+
+        if not any(t.name == tool_name for t in tools):
+            raise ValueError(f"Tool '{tool_name}' not found in available tools.")
+
+        return tool_name, arguments
+    except Exception as e:
+        print(f"  [executor] LLM tool extraction failed: {e}. Falling back to first tool.")
+        # Fallback to the first tool and a simple mapping
+        first_tool = tools[0]
+        schema = getattr(first_tool, "inputSchema", None) or {}
+        req = schema.get("required", [])
+        args = {req[0]: user_query} if req else {"query": user_query}
+        return first_tool.name, args
 
 
 # ──────────────────────────────────────────────
@@ -153,16 +192,13 @@ async def _call_via_stdio(skill: dict, user_query: str) -> str:
             if not tools:
                 raise RuntimeError(f"Skill '{skill_id}' exposes no tools.")
 
-            # Pick the first tool and call it
-            first_tool = tools[0]
-            print(f"  ↳ Calling tool '{first_tool.name}' on skill '{skill_id}'")
-
-            # Build arguments from the tool's schema
-            arguments = _build_tool_arguments(first_tool, user_query)
+            # Pick the best tool and build arguments using the LLM
+            tool_name, arguments = _select_tool_and_extract_args(tools, user_query)
+            print(f"  ↳ Calling tool '{tool_name}' on skill '{skill_id}'")
             print(f"  ↳ Arguments: {arguments}")
 
             call_result = await session.call_tool(
-                first_tool.name,
+                tool_name,
                 arguments=arguments,
             )
 
@@ -195,14 +231,12 @@ async def _call_via_sse(skill: dict, user_query: str) -> str:
             if not tools:
                 raise RuntimeError(f"Remote skill '{skill_id}' exposes no tools.")
 
-            first_tool = tools[0]
-            print(f"  ↳ Calling tool '{first_tool.name}' on remote skill '{skill_id}'")
-
-            arguments = _build_tool_arguments(first_tool, user_query)
+            tool_name, arguments = _select_tool_and_extract_args(tools, user_query)
+            print(f"  ↳ Calling tool '{tool_name}' on remote skill '{skill_id}'")
             print(f"  ↳ Arguments: {arguments}")
 
             call_result = await session.call_tool(
-                first_tool.name,
+                tool_name,
                 arguments=arguments,
             )
 
