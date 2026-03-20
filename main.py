@@ -61,6 +61,15 @@ def summarize_output(query: str, raw_output: str) -> str:
     user_message = f"User Query: {query}\n\nRaw Tool Output:\n{raw_output}"
 
     try:
+        # --- DEBUG LOGGING ---
+        print("\n=== DEBUG: RAW TOOL OUTPUT (" + str(len(raw_output)) + " chars) ===")
+        # Print first 500 chars and last 500 chars to avoid flooding terminal
+        if len(raw_output) > 1000:
+            print(raw_output[:500] + "\n\n... [SNIP] ...\n\n" + raw_output[-500:])
+        else:
+            print(raw_output)
+        print("===================================================\n")
+
         response = ollama.chat(
             model=MODEL,
             messages=[
@@ -69,7 +78,14 @@ def summarize_output(query: str, raw_output: str) -> str:
             ],
             options={"num_predict": NUM_PREDICT},
         )
-        return response["message"]["content"].strip()
+        final_answer = response["message"]["content"].strip()
+
+        print("\n=== DEBUG: SYNTHESIZED LLM RESPONSE ===")
+        print(final_answer)
+        print("=======================================\n")
+        # ---------------------
+
+        return final_answer
     except Exception as e:
         log_stage("error", f"Summarization failed: {e}")
         return "I have completed the task, but I encountered an error translating the result."
@@ -100,9 +116,7 @@ def main():
     log_stage("ready", "K.I.T.E. is online.")
     start_server_in_background(8080)
     startup_msg = (
-        "KITE is now online. Systems initialized, skills loaded, and audio is ready. "
-        "I am standing by to solve whatever mundane problems you humans have created today. "
-        "Please try to ask something that doesn't completely waste my processing power."
+        "KITE is now online. nee amma"
     )
     push_message("agent", startup_msg)
     play_audio(startup_msg)
