@@ -9,7 +9,8 @@ import socketserver
 # Global state to keep track of audio updates and messages
 API_STATE = {
     "updated_at": 0.0,
-    "messages": []  # List of {"role": "user"|"agent", "text": "...", "timestamp": float}
+    "messages": [],  # List of {"role": "user"|"agent", "text": "...", "timestamp": float}
+    "listen_active": False
 }
 
 # Lock for thread-safe message access
@@ -82,6 +83,21 @@ class CORSRequestHandler(SimpleHTTPRequestHandler):
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(b'{"ok": true}')
+            except Exception as e:
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+        elif self.path == '/api/listen_toggle':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            try:
+                data = json.loads(body)
+                API_STATE["listen_active"] = bool(data.get("state", False))
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"listen_active": API_STATE["listen_active"]}).encode('utf-8'))
             except Exception as e:
                 self.send_response(400)
                 self.send_header('Content-Type', 'application/json')

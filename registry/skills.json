@@ -23,15 +23,15 @@
   {
     "id": "web_fetcher",
     "name": "Web Page Fetcher",
-    "description": "Fetch the raw HTML or text content of a web page given its URL. Useful for scraping, reading documentation, or downloading page data.",
-    "mcp_server_url": "https://mcp.fetcher.example.com",
+    "description": "Fetch the content of a web page given its URL as clean, readable markdown or plain text. Handles JavaScript-rendered pages and removes ads and navigation clutter. Useful for reading documentation, articles, or any web page.",
+    "mcp_server_url": null,
     "tools": ["fetch_url", "fetch_text"]
   },
   {
     "id": "web_search",
     "name": "Web Search Engine",
     "description": "Search the internet for current information, news articles, and web results using a query string. Returns titles, snippets, and links.",
-    "mcp_server_url": "https://mcp.search.example.com",
+    "mcp_server_url": null,
     "tools": ["search_web", "search_news"]
   },
   {

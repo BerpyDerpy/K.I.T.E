@@ -17,6 +17,7 @@ from dotenv import load_dotenv
 # ──────────────────────────────────────────────
 load_dotenv()
 MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b-instruct-q4_K_M")
+NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "2048"))
 
 
 # ──────────────────────────────────────────────
@@ -106,6 +107,7 @@ def _call_ollama(system_prompt: str, user_message: str) -> dict:
             {"role": "user", "content": user_message},
         ],
         format="json",
+        options={"num_predict": NUM_PREDICT},
     )
     text = response["message"]["content"]
     return json.loads(text)
@@ -129,6 +131,7 @@ def _retry_with_correction(system_prompt: str, user_message: str, error: str) ->
             {"role": "user", "content": correction},
         ],
         format="json",
+        options={"num_predict": NUM_PREDICT},
     )
     text = response["message"]["content"]
     return json.loads(text)
@@ -158,15 +161,17 @@ def route(user_query: str, retrieved_skills: list[dict]) -> dict:
     system_prompt = _build_system_prompt(retrieved_skills)
 
     # --- First attempt ---
+    first_error_msg = ""
     try:
         data = _call_ollama(system_prompt, user_query)
         return _validate(data)
     except Exception as first_error:
-        print(f"  [router] First attempt failed: {first_error}")
+        first_error_msg = str(first_error)
+        print(f"  [router] First attempt failed: {first_error_msg}")
 
     # --- Retry once ---
     try:
-        data = _retry_with_correction(system_prompt, user_query, str(first_error))
+        data = _retry_with_correction(system_prompt, user_query, first_error_msg)
         return _validate(data)
     except Exception as second_error:
         print(f"  [router] Retry also failed: {second_error}")
@@ -175,7 +180,7 @@ def route(user_query: str, retrieved_skills: list[dict]) -> dict:
             "can_handle": False,
             "skill_id": None,
             "response": "Router failed to produce a valid decision.",
-            "reasoning": f"Parse errors: 1st={first_error}, 2nd={second_error}",
+            "reasoning": f"Parse errors: 1st={first_error_msg}, 2nd={second_error}",
         }
 
 

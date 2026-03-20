@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:7b-instruct-q4_K_M")
+NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "2048"))
 
 # ─── MCP SDK imports ───────────────────────────
 from mcp import ClientSession
@@ -94,6 +95,7 @@ Rules:
                 {"role": "user", "content": f"User query: {user_query}"},
             ],
             format="json",
+            options={"num_predict": NUM_PREDICT},
         )
         data = json.loads(response["message"]["content"])
         tool_name = data.get("tool_name")

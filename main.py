@@ -5,8 +5,11 @@ K.I.T.E. Main Conversational Loop
 import asyncio
 import json
 import threading
+import time
 from datetime import datetime
 import os
+import sys
+import queue
 import warnings
 
 # --- Suppress Startup Warnings ---
@@ -31,12 +34,12 @@ except ImportError:
 import ollama
 
 from core import retriever, router, executor
-from audio import tts
+from audio import tts, stt
 from ui.api import start_server_in_background, push_message
 
 # Constants
 MODEL = getattr(router, "MODEL", "qwen2.5-coder:7b-instruct-q4_K_M")
-
+NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "2048"))
 
 def log_stage(stage: str, message: str):
     """Log a pipeline stage with timestamp."""
@@ -64,6 +67,7 @@ def summarize_output(query: str, raw_output: str) -> str:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
+            options={"num_predict": NUM_PREDICT},
         )
         return response["message"]["content"].strip()
     except Exception as e:
@@ -103,12 +107,42 @@ def main():
     push_message("agent", startup_msg)
     play_audio(startup_msg)
 
+    # --- Start Input Listeners ---
+    input_queue = queue.Queue()
+
+    def stt_listener():
+        while True:
+            try:
+                text = stt.listen()
+                if text:
+                    input_queue.put(text)
+            except Exception as e:
+                time.sleep(1)
+
+    def terminal_listener():
+        while True:
+            try:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                text = line.strip()
+                if text:
+                    input_queue.put(text)
+            except Exception:
+                break
+
+    threading.Thread(target=stt_listener, daemon=True).start()
+    threading.Thread(target=terminal_listener, daemon=True).start()
+
     while True:
         try:
             print("\n" + "=" * 60)
-            user_input = input("> ").strip() # User input Line 76.
-            if not user_input:
-                continue
+            user_input = input_queue.get()
+
+            # Strip the string into individual words as requested
+            words = [word.strip() for word in user_input.split()]
+            # Join back to string so the rest of the pipeline continues as it did
+            user_input = " ".join(words)
 
             log_stage("input", user_input)
             push_message("user", user_input)
@@ -155,6 +189,14 @@ def main():
             log_stage("output", final_response)
             push_message("agent", final_response)
             play_audio(final_response)
+
+            # Wait while it's speaking to prevent STT echo
+            while tts.IS_SPEAKING:
+                time.sleep(0.1)
+
+            # Add the requested 3-second delay before prompting the user again
+            log_stage("wait", "Giving user time before next prompt...")
+            time.sleep(3)
 
         except KeyboardInterrupt:
             print("\n")

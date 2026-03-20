@@ -7,7 +7,9 @@
   <title>K.I.T.E — Control Interface</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400&display=swap"
+    rel="stylesheet">
   <style>
     * {
       margin: 0;
@@ -92,8 +94,17 @@
     }
 
     @keyframes pulseRing {
-      0%, 100% { transform: scale(1); opacity: 0.6; }
-      50% { transform: scale(1.08); opacity: 1; }
+
+      0%,
+      100% {
+        transform: scale(1);
+        opacity: 0.6;
+      }
+
+      50% {
+        transform: scale(1.08);
+        opacity: 1;
+      }
     }
 
     /* ── Animation iframe: fills most of the viewport ── */
@@ -272,13 +283,25 @@
     }
 
     @keyframes cursorBlink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0; }
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0;
+      }
     }
 
     @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
     }
 
     /* ── Debug audio input ── */
@@ -332,6 +355,102 @@
       color: rgba(184, 184, 196, 0.3);
     }
 
+    /* ── Microphone Toggle Button ── */
+    .mic-button-container {
+      position: fixed;
+      bottom: 3px;
+      /* Above the message panels */
+      left: 43%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+
+    .mic-button-container.visible {
+      opacity: 1;
+    }
+
+    .mic-button {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(184, 184, 196, 0.15);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      color: rgba(184, 184, 196, 0.8);
+    }
+
+    .mic-button::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 1px solid transparent;
+      transition: border-color 0.3s ease;
+    }
+
+    .mic-button:hover {
+      background: rgba(255, 255, 255, 0.1);
+      transform: scale(1.05);
+    }
+
+    .mic-button.active {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: rgba(239, 68, 68, 0.5);
+      box-shadow: 0 0 24px rgba(239, 68, 68, 0.3);
+      color: rgba(239, 68, 68, 0.9);
+    }
+
+    .mic-button.active::before {
+      border-color: rgba(239, 68, 68, 0.2);
+      animation: pulseMic 2s infinite;
+    }
+
+    @keyframes pulseMic {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(1.3);
+        opacity: 0;
+      }
+    }
+
+    .mic-icon {
+      transition: transform 0.2s ease;
+    }
+
+    .mic-button:active .mic-icon {
+      transform: scale(0.9);
+    }
+
+    .mic-status-text {
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: rgba(184, 184, 196, 0.6);
+      transition: color 0.3s ease;
+    }
+
+    .mic-button.active+.mic-status-text {
+      color: rgba(239, 68, 68, 0.8);
+    }
+
     /* ── Responsive ── */
     @media (max-width: 768px) {
       .message-panels {
@@ -347,6 +466,10 @@
         min-height: 70px;
         max-height: 100px;
         padding: 14px 20px;
+      }
+
+      .mic-button-container {
+        bottom: 110px;
       }
     }
   </style>
@@ -379,6 +502,20 @@
   <!-- KITE animation (embedded untouched) -->
   <div class="animation-frame">
     <iframe id="kiteFrame" src="kite_breathing.html"></iframe>
+  </div>
+
+  <!-- Microphone Toggle -->
+  <div class="mic-button-container" id="micContainer">
+    <button class="mic-button" id="micButton" title="Toggle Microphone">
+      <svg class="mic-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+        <line x1="12" y1="19" x2="12" y2="23"></line>
+        <line x1="8" y1="23" x2="16" y2="23"></line>
+      </svg>
+    </button>
+    <div class="mic-status-text" id="micStatusText">Ready</div>
   </div>
 
   <!-- Message display panels -->
@@ -453,6 +590,7 @@
 
       setTimeout(() => {
         messagePanels.classList.add('visible');
+        document.getElementById('micContainer').classList.add('visible');
       }, 600);
 
       // Start message polling
@@ -542,6 +680,48 @@
         statusLabel.textContent = 'Offline';
       }
     }
+
+    // ── Microphone Toggle Logic ──
+    const micButton = document.getElementById('micButton');
+    const micStatusText = document.getElementById('micStatusText');
+    let isListening = false;
+
+    micButton.addEventListener('click', async () => {
+      isListening = !isListening;
+
+      // Update UI
+      if (isListening) {
+        micButton.classList.add('active');
+        micStatusText.textContent = 'Listening...';
+      } else {
+        micButton.classList.remove('active');
+        micStatusText.textContent = 'Processing...';
+        setTimeout(() => {
+          if (!isListening) micStatusText.textContent = 'Ready';
+        }, 3000);
+      }
+
+      // Send state to backend
+      try {
+        await fetch('/api/listen_toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ state: isListening })
+        });
+      } catch (err) {
+        console.error('Failed to toggle listen state:', err);
+        // Revert UI on failure
+        isListening = !isListening;
+        if (isListening) {
+          micButton.classList.add('active');
+          micStatusText.textContent = 'Listening...';
+        } else {
+          micButton.classList.remove('active');
+          micStatusText.textContent = 'Ready';
+        }
+      }
+    });
+
   </script>
 </body>
 
